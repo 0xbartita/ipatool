@@ -118,6 +118,77 @@ var _ = Describe("AppStore (Bag)", func() {
 		})
 	})
 
+	When("request is successful with authenticateAccount at the bag root", func() {
+		const testAuthEndpoint = "https://example.com"
+
+		BeforeEach(func() {
+			mockMachine.EXPECT().
+				MacAddress().
+				Return("aa:bb:cc:dd:ee:ff", nil)
+
+			mockBagClient.EXPECT().
+				Send(gomock.Any()).
+				Return(http.Result[bagResult]{
+					StatusCode: gohttp.StatusOK,
+					Data: bagResult{
+						AuthEndpoint: testAuthEndpoint,
+					},
+				}, nil)
+		})
+
+		It("prefers the root authenticateAccount key", func() {
+			out, err := as.Bag(BagInput{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out.AuthEndpoint).To(Equal(testAuthEndpoint))
+		})
+	})
+
+	When("the auth endpoint points at Apple's native auth host without a trailing slash", func() {
+		BeforeEach(func() {
+			mockMachine.EXPECT().
+				MacAddress().
+				Return("aa:bb:cc:dd:ee:ff", nil)
+
+			mockBagClient.EXPECT().
+				Send(gomock.Any()).
+				Return(http.Result[bagResult]{
+					StatusCode: gohttp.StatusOK,
+					Data: bagResult{
+						AuthEndpoint: "https://auth.itunes.apple.com/auth/v1/native",
+					},
+				}, nil)
+		})
+
+		It("appends the /fast/ sub-path with a trailing slash", func() {
+			out, err := as.Bag(BagInput{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out.AuthEndpoint).To(Equal("https://auth.itunes.apple.com/auth/v1/native/fast/"))
+		})
+	})
+
+	When("the auth endpoint already has the /fast sub-path but no trailing slash", func() {
+		BeforeEach(func() {
+			mockMachine.EXPECT().
+				MacAddress().
+				Return("aa:bb:cc:dd:ee:ff", nil)
+
+			mockBagClient.EXPECT().
+				Send(gomock.Any()).
+				Return(http.Result[bagResult]{
+					StatusCode: gohttp.StatusOK,
+					Data: bagResult{
+						AuthEndpoint: "https://auth.itunes.apple.com/auth/v1/native/fast",
+					},
+				}, nil)
+		})
+
+		It("only adds the trailing slash", func() {
+			out, err := as.Bag(BagInput{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out.AuthEndpoint).To(Equal("https://auth.itunes.apple.com/auth/v1/native/fast/"))
+		})
+	})
+
 	When("request is successful but authenticateAccount is empty", func() {
 		BeforeEach(func() {
 			mockMachine.EXPECT().
